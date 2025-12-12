@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alertiqo Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    button {
+      background: #4F46E5;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #4338CA;
+    }
+    .info {
+      background: #F3F4F6;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Alertiqo SDK Example</h1>
+  
+  <div class="info">
+    <p><strong>Instructions:</strong></p>
+    <ol>
+      <li>Create a project at <a href="https://alertiqo.hamizi.net">alertiqo.hamizi.net</a> and copy API key</li>
+      <li>Replace YOUR_API_KEY_HERE in the code below with your API key</li>
+      <li>Open this file in browser and click buttons to test error tracking</li>
+    </ol>
+  </div>
+
+  <h2>Test Errors</h2>
+  <button onclick="testError()">Trigger Error</button>
+  <button onclick="testMessage()">Send Message</button>
+  <button onclick="testBreadcrumbs()">Test Breadcrumbs</button>
+  <button onclick="testUserContext()">Set User Context</button>
+
+  <script type="module">
+    // Import SDK (in production, install via npm: npm install @hymns/alertiqo)
+    class Alertiqo {
+      constructor(config) {
+        this.config = {
+          environment: 'production',
+          tags: {},
+          ...config,
+        };
+        this.breadcrumbs = [];
+        this.initialized = false;
+      }
+
+      init() {
+        if (this.initialized) return;
+
+        window.addEventListener('error', (event) => {
+          this.captureException(event.error || new Error(event.message));
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+          this.captureException(event.reason);
+        });
+
+        this.initialized = true;
+        console.log('✅ Alertiqo initialized');
+      }
+
+      captureException(error, additionalData) {
+        const errorObj = typeof error === 'string' ? new Error(error) : error;
+        
+        const report = {
+          message: errorObj.message,
+          stack: errorObj.stack,
+          level: 'error',
+          timestamp: Date.now(),
+          environment: this.config.environment || 'production',
+          release: this.config.release,
+          tags: { ...this.config.tags, ...additionalData?.tags },
+          context: this.getContext(),
+          breadcrumbs: [...this.breadcrumbs],
+        };
+
+        this.sendReport(report);
+      }
+
+      captureMessage(message, level = 'info') {
+        const report = {
+          message,
+          level,
+          timestamp: Date.now(),
+          environment: this.config.environment || 'production',
+          release: this.config.release,
+          tags: this.config.tags || {},
+          context: this.getContext(),
+          breadcrumbs: [...this.breadcrumbs],
+        };
+
+        this.sendReport(report);
+      }
+
+      addBreadcrumb(breadcrumb) {
+        this.breadcrumbs.push({
+          ...breadcrumb,
+          timestamp: Date.now(),
+        });
+
+        if (this.breadcrumbs.length > 100) {
+          this.breadcrumbs.shift();
+        }
+        console.log('🍞 Breadcrumb added:', breadcrumb.message);
+      }
+
+      setUser(user) {
+        this.config.tags = {
+          ...this.config.tags,
+          userId: user?.id || '',
+          userEmail: user?.email || '',
+        };
+        console.log('👤 User context set:', user);
+      }
+
+      setTag(key, value) {
+        if (!this.config.tags) {
+          this.config.tags = {};
+        }
+        this.config.tags[key] = value;
+      }
+
+      getContext() {
+        return {
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          browser: this.getBrowserInfo(),
+          os: this.getOSInfo(),
+        };
+      }
+
+      getBrowserInfo() {
+        const ua = navigator.userAgent;
+        if (ua.includes('Chrome')) return 'Chrome';
+        if (ua.includes('Firefox')) return 'Firefox';
+        if (ua.includes('Safari')) return 'Safari';
+        if (ua.includes('Edge')) return 'Edge';
+        return 'unknown';
+      }
+
+      getOSInfo() {
+        const ua = navigator.userAgent;
+        if (ua.includes('Windows')) return 'Windows';
+        if (ua.includes('Mac')) return 'macOS';
+        if (ua.includes('Linux')) return 'Linux';
+        if (ua.includes('Android')) return 'Android';
+        if (ua.includes('iOS')) return 'iOS';
+        return 'unknown';
+      }
+
+      async sendReport(report) {
+        try {
+          console.log('📤 Sending error report:', report);
+          
+          const response = await fetch(`${this.config.endpoint}/api/errors`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': this.config.apiKey,
+            },
+            body: JSON.stringify(report),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Error reported successfully:', data);
+          } else {
+            console.error('❌ Failed to send error report:', response.statusText);
+          }
+        } catch (error) {
+          console.error('❌ Failed to send error report:', error);
+        }
+      }
+    }
+
+    // Initialize Alertiqo
+    const alertiqo = new Alertiqo({
+      apiKey: 'YOUR_API_KEY_HERE', // Replace with your API key
+      endpoint: 'https://alertiqo.hamizi.net',
+      environment: 'development',
+      release: '1.0.0',
+    });
+
+    alertiqo.init();
+
+    // Make available globally
+    window.alertiqo = alertiqo;
+
+    // Test functions
+    window.testError = function() {
+      alertiqo.addBreadcrumb({
+        message: 'User clicked "Trigger Error" button',
+        category: 'user-action',
+        level: 'info',
+      });
+
+      try {
+        throw new Error('This is a test error from Alertiqo example!');
+      } catch (error) {
+        alertiqo.captureException(error);
+        alert('Error captured! Check your dashboard.');
+      }
+    };
+
+    window.testMessage = function() {
+      alertiqo.captureMessage('User triggered test message', 'info');
+      alert('Message sent! Check your dashboard.');
+    };
+
+    window.testBreadcrumbs = function() {
+      alertiqo.addBreadcrumb({
+        message: 'User navigated to page',
+        category: 'navigation',
+        level: 'info',
+        data: { page: 'example' }
+      });
+
+      alertiqo.addBreadcrumb({
+        message: 'Form validation failed',
+        category: 'validation',
+        level: 'warning',
+        data: { field: 'email' }
+      });
+
+      alertiqo.addBreadcrumb({
+        message: 'API request started',
+        category: 'http',
+        level: 'info',
+        data: { url: '/api/users' }
+      });
+
+      setTimeout(() => {
+        try {
+          throw new Error('Error with breadcrumbs trail');
+        } catch (error) {
+          alertiqo.captureException(error);
+          alert('Error with breadcrumbs captured! Check your dashboard.');
+        }
+      }, 100);
+    };
+
+    window.testUserContext = function() {
+      alertiqo.setUser({
+        id: '12345',
+        email: 'test@example.com',
+        username: 'testuser'
+      });
+
+      alertiqo.setTag('subscription', 'premium');
+      
+      setTimeout(() => {
+        try {
+          throw new Error('Error with user context');
+        } catch (error) {
+          alertiqo.captureException(error);
+          alert('Error with user context captured! Check your dashboard.');
+        }
+      }, 100);
+    };
+  </script>
+</body>
+</html>

@@ -10,6 +10,9 @@ export interface AlertiqoConfig {
 export interface ErrorReport {
   message: string;
   stack?: string;
+  file?: string;
+  line?: number;
+  column?: number;
   level: 'error' | 'warning' | 'info' | 'debug';
   timestamp: number;
   environment: string;
@@ -68,10 +71,14 @@ class Alertiqo {
 
   captureException(error: Error | string, additionalData?: Record<string, any>): void {
     const errorObj = typeof error === 'string' ? new Error(error) : error;
+    const { file, line, column } = this.parseStackTrace(errorObj.stack);
     
     const report: ErrorReport = {
       message: errorObj.message,
       stack: errorObj.stack,
+      file,
+      line,
+      column,
       level: 'error',
       timestamp: Date.now(),
       environment: this.config.environment || 'production',
@@ -133,6 +140,33 @@ class Alertiqo {
 
   setTags(tags: Record<string, string>): void {
     this.config.tags = { ...this.config.tags, ...tags };
+  }
+
+  private parseStackTrace(stack?: string): { file?: string; line?: number; column?: number } {
+    if (!stack) return {};
+    
+    const lines = stack.split('\n');
+    for (const line of lines) {
+      // Match patterns like:
+      // at functionName (http://example.com/file.js:10:5)
+      // at http://example.com/file.js:10:5
+      const match = line.match(/(?:at\s+)?(?:.*?\s+)?\(?(.+?):(\d+):(\d+)\)?$/);
+      if (match) {
+        const filePath = match[1];
+        // Skip browser extensions and internal files
+        if (filePath.startsWith('chrome-extension://') || 
+            filePath.startsWith('moz-extension://') ||
+            filePath.includes('node_modules')) {
+          continue;
+        }
+        return {
+          file: filePath,
+          line: parseInt(match[2], 10),
+          column: parseInt(match[3], 10),
+        };
+      }
+    }
+    return {};
   }
 
   private getContext(): ErrorReport['context'] {

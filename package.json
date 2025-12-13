@@ -1,6 +1,6 @@
 {
   "name": "@hymns/alertiqo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Alertiqo SDK for browser error tracking",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,7 +9,12 @@
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["alertiqo", "error-tracking", "browser", "sdk"],
+  "keywords": [
+    "alertiqo",
+    "error-tracking",
+    "browser",
+    "sdk"
+  ],
   "license": "MIT",
   "devDependencies": {
     "typescript": "^5.3.3",

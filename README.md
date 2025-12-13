@@ -17,7 +17,7 @@ import Alertiqo from '@hymns/alertiqo';
 
 const alertiqo = new Alertiqo({
   apiKey: 'your-api-key',
-  endpoint: 'https://alertiqo.hamizi.net',
+  endpoint: 'https://alertiqo.io',
   environment: 'production',
   release: '1.0.0',
 });
